@@ -3,9 +3,14 @@ import gradio as gr
 import boto3
 import json
 import logging
+from pathlib import Path
 
 # Set up logging
-logging.basicConfig(filename='/var/log/gradio_app.log', level=logging.DEBUG, 
+log_dir = Path('/tmp/gradio_logs')
+log_dir.mkdir(exist_ok=True)
+log_file = log_dir / 'gradio_app.log'
+
+logging.basicConfig(filename=str(log_file), level=logging.DEBUG, 
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Set up Amazon Bedrock client
@@ -13,18 +18,27 @@ bedrock = boto3.client('bedrock-runtime', region_name='us-east-1')
 
 # Function to generate response using Amazon Bedrock
 def generate_response(prompt, conversation_history):
-    messages = [{"role": "human", "content": msg} for msg in conversation_history.split('\n') if msg.startswith("Human: ")]
-    messages.append({"role": "human", "content": prompt})
+    # Parse the conversation history into proper message format
+    messages = []
+    for line in conversation_history.split('\n'):
+        if line.startswith("Human: "):
+            messages.append({"role": "user", "content": line[7:]})
+        elif line.startswith("Assistant: "):
+            messages.append({"role": "assistant", "content": line[11:]})
+    
+    # Add the new prompt
+    messages.append({"role": "user", "content": prompt})
     
     body = json.dumps({
         "anthropic_version": "bedrock-2023-05-31",
-        "max_tokens": 300,
+        "max_tokens": 800,
         "messages": messages,
         "temperature": 0.7,
         "top_p": 0.95,
     })
     
     try:
+        logging.info(f"Sending request to Bedrock with messages: {messages}")
         response = bedrock.invoke_model(
             body=body,
             modelId='anthropic.claude-3-sonnet-20240229-v1:0',
@@ -33,8 +47,8 @@ def generate_response(prompt, conversation_history):
         )
         
         response_body = json.loads(response['body'].read())
+        logging.info("Successfully received response from Bedrock")
         return response_body['content'][0]['text']
-    
     except Exception as e:
         logging.error(f"Error invoking Bedrock model: {str(e)}")
         raise
@@ -49,7 +63,7 @@ def chatbot(message, history):
         return response
     except Exception as e:
         logging.error(f"Error in chatbot function: {str(e)}")
-        raise
+        return f"An error occurred: {str(e)}"
 
 
 if __name__ == "__main__":
