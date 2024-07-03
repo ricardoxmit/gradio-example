@@ -5,7 +5,7 @@ import json
 import logging
 
 # Set up logging
-logging.basicConfig(filename='/var/log/app/gradio_app.log', level=logging.DEBUG, 
+logging.basicConfig(filename='/var/log/gradio_app.log', level=logging.DEBUG, 
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Set up Amazon Bedrock client
